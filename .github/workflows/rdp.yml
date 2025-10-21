@@ -151,7 +151,97 @@ jobs:
           python -m pip install blinker==1.6.2
           python -m pip install selenium==4.1.0 selenium-wire==5.1.0 requests pysocks stem
           
+          # Installer les dÃ©pendances pour le tracking
+          Write-Host "Installing tracking dependencies..."
+          python -m pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+          
           Write-Host "Python dependencies installed successfully with correct versions"
+
+      - name: Download RDP Tracking Scripts
+        run: |
+          Write-Host "=== DOWNLOADING RDP TRACKING SCRIPTS ==="
+          
+          # ID du dossier Google Drive contenant les scripts de tracking
+          # Dossier: RDP-Scripts
+          $trackingFolderId = "1HdvkRD8oY_KyqXqh9oqEFOtuwB2oCPFW"
+          
+          # CrÃ©er le dossier pour les scripts de tracking
+          $trackingPath = "D:\Script\Tracking"
+          New-Item -Path $trackingPath -ItemType Directory -Force | Out-Null
+          
+          # Liste des scripts Ã  tÃ©lÃ©charger
+          $trackingScripts = @(
+              "rdp_tracker.py",
+              "auto_browser.py",
+              "auto_tracker_wrapper.py",
+              "sitecustomize.py",
+              "requirements.txt"
+          )
+          
+          Write-Host "Downloading tracking scripts from Google Drive..."
+          
+          foreach ($script in $trackingScripts) {
+              try {
+                  # TÃ©lÃ©charger depuis Google Drive
+                  python -m gdown --fuzzy "https://drive.google.com/drive/folders/$trackingFolderId" -O "$trackingPath\$script" --quiet
+                  
+                  if (Test-Path "$trackingPath\$script") {
+                      $size = [math]::Round((Get-Item "$trackingPath\$script").Length/1KB, 2)
+                      Write-Host "   Downloaded $script ($size KB)"
+                  } else {
+                      Write-Host "   Failed to download $script"
+                  }
+              } catch {
+                  Write-Host "   Error downloading $script : $($_.Exception.Message)"
+              }
+          }
+          
+          # VÃ©rifier si les scripts ont Ã©tÃ© tÃ©lÃ©chargÃ©s
+          $downloadedScripts = Get-ChildItem $trackingPath -Filter "*.py" -ErrorAction SilentlyContinue
+          
+          if ($downloadedScripts.Count -gt 0) {
+              Write-Host ""
+              Write-Host "Tracking scripts downloaded successfully:"
+              foreach ($script in $downloadedScripts) {
+                  Write-Host "   - $($script.Name)"
+              }
+          } else {
+              Write-Host ""
+              Write-Host "WARNING: No tracking scripts downloaded from Google Drive"
+              Write-Host "Creating minimal tracker script..."
+              
+              "import json" | Out-File -FilePath "$trackingPath\rdp_tracker.py" -Encoding UTF8
+              "from pathlib import Path" | Out-File -FilePath "$trackingPath\rdp_tracker.py" -Encoding UTF8 -Append
+              "" | Out-File -FilePath "$trackingPath\rdp_tracker.py" -Encoding UTF8 -Append
+              "class MinimalTracker:" | Out-File -FilePath "$trackingPath\rdp_tracker.py" -Encoding UTF8 -Append
+              "    def __init__(self):" | Out-File -FilePath "$trackingPath\rdp_tracker.py" -Encoding UTF8 -Append
+              "        self.stats = {}" | Out-File -FilePath "$trackingPath\rdp_tracker.py" -Encoding UTF8 -Append
+              
+              Write-Host "Minimal tracker created"
+          }
+          
+          Write-Host ""
+          Write-Host "Tracking scripts setup completed"
+          
+          # Installer sitecustomize.py pour activation automatique
+          Write-Host ""
+          Write-Host "Installing automatic tracking activation..."
+          
+          $pythonPath = (python -c "import sys; print(sys.executable)")
+          $pythonDir = Split-Path $pythonPath
+          $sitePackages = "$pythonDir\Lib\site-packages"
+          
+          if (Test-Path "$trackingPath\sitecustomize.py") {
+              Copy-Item "$trackingPath\sitecustomize.py" -Destination "$sitePackages\sitecustomize.py" -Force
+              Write-Host "sitecustomize.py installed in $sitePackages"
+          }
+          
+          if (Test-Path "$trackingPath\auto_tracker_wrapper.py") {
+              Copy-Item "$trackingPath\auto_tracker_wrapper.py" -Destination "$sitePackages\auto_tracker_wrapper.py" -Force
+              Write-Host "auto_tracker_wrapper.py installed"
+          }
+          
+          Write-Host "Automatic tracking will be enabled for all Python scripts"
 
       - name: Verify Downloaded Scripts
         run: |
